@@ -10,7 +10,7 @@ load_dotenv()
 app = Flask(__name__, template_folder='templates', static_folder='static')
 CORS(app)
 
-# Use the API key from environment variable explicitly
+# Function to get the Gemini Client explicitly using GEMINI_API_KEY
 def get_client():
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
@@ -69,8 +69,8 @@ def chat():
         if reply:
             return jsonify({"reply": reply})
         else:
-            # Send the specific error back to UI for debugging
-            return jsonify({"reply": f"⚠️ Aura Error: {error}. Check Vercel Environment Variables."}), 500
+            # Informative error message for the user
+            return jsonify({"reply": f"⚠️ Aura Error: {error}. Please try again later."}), 500
 
     except Exception as e:
         return jsonify({"reply": f"Global Error: {str(e)}"}), 500
