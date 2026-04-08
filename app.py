@@ -1,7 +1,7 @@
 import os
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
-from genai import Client
+from google import genai
 from dotenv import load_dotenv
 
 # Load environment variables from .env
@@ -18,19 +18,20 @@ API_KEYS = [
 # Clean None values
 API_KEYS = [k.strip() for k in API_KEYS if k and k.strip()]
 
-# Dictionary to store chat sessions (Simplified for new SDK)
+# Dictionary to store chat sessions
 chat_histories = {}
 
 def get_chat_response(message, session_id):
     if not API_KEYS:
-        return None, "No API keys configured in .env or Vercel Settings"
+        return None, "No API keys configured in Vercel Settings"
     
     last_error = "Unknown error"
     
     # Try each API key until one works
     for key in API_KEYS:
         try:
-            client = Client(api_key=key)
+            # Correct initialization for google-genai SDK
+            client = genai.Client(api_key=key)
             
             # Initialize history if new session
             if session_id not in chat_histories:
