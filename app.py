@@ -3,23 +3,20 @@ from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 import google.generativeai as genai
 
-# Explicitly set template and static folders for Vercel
 app = Flask(__name__, template_folder='templates', static_folder='static')
 CORS(app)
 
-# Configure Gemini API from Environment Variables (Vercel settings)
+# Configure Gemini API from Environment Variables
 API_KEY = os.environ.get("GEMINI_API_KEY")
 
-if API_KEY:
+def init_gemini():
+    if not API_KEY:
+        return None, "API_KEY not found in Vercel settings"
     try:
-        genai.configure(api_key=API_KEY)
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        genai.configure(api_key=API_KEY.strip())
+        return genai.GenerativeModel('gemini-1.5-flash'), None
     except Exception as e:
-        model = None
-        print(f"Gemini Init Error: {e}")
-else:
-    model = None
-    print("API_KEY not found in environment variables")
+        return None, str(e)
 
 chat_sessions = {}
 
@@ -29,8 +26,9 @@ def index():
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
+    model, error_msg = init_gemini()
     if not model:
-        return jsonify({"reply": "⚠️ AI System Offline: API Key missing or invalid in Vercel settings."}), 500
+        return jsonify({"reply": f"⚠️ AI Offline: {error_msg}"}), 500
 
     try:
         data = request.json
@@ -42,8 +40,8 @@ def chat():
 
         if session_id not in chat_sessions:
             chat_sessions[session_id] = model.start_chat(history=[
-                 {"role": "user", "parts": ["You are Aura, an elite, professional, and friendly AI Customer Support Assistant for a premium website. Provide clear, concise, and highly helpful answers."]},
-                 {"role": "model", "parts": ["Understood. I am Aura, your elite AI support assistant."]}
+                 {"role": "user", "parts": ["You are Aura, an elite, professional, and friendly AI Customer Support Assistant. Provide helpful and concise answers."]},
+                 {"role": "model", "parts": ["Understood. I am Aura, your AI assistant."]}
             ])
         
         chat_session = chat_sessions[session_id]
@@ -52,9 +50,7 @@ def chat():
         return jsonify({"reply": response.text})
 
     except Exception as e:
-        print(f"Chat Error: {e}")
-        return jsonify({"reply": "I'm having trouble connecting to my brain right now. Please try again later."}), 500
+        return jsonify({"reply": f"Brain Error: {str(e)}"}), 500
 
-# For local testing if needed
 if __name__ == '__main__':
     app.run(debug=True)
