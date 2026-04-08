@@ -29,7 +29,7 @@ def get_chat_response(message, session_id):
         # Retrieve or create stateful chat session
         if session_id not in chat_sessions:
             chat_sessions[session_id] = client.chats.create(
-                model="gemini-1.5-flash-latest",
+                model="gemini-2.0-flash",
                 config={"system_instruction": "You are Aura, an elite AI assistant. Be professional, helpful, and concise."}
             )
         
