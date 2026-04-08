@@ -1,7 +1,11 @@
 import os
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
-import google.generativeai as genai
+from genai import Client
+from dotenv import load_dotenv
+
+# Load environment variables from .env
+load_dotenv()
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 CORS(app)
@@ -12,25 +16,44 @@ API_KEYS = [
     os.environ.get("GEMINI_API_KEY_2")
 ]
 # Clean None values
-API_KEYS = [k.strip() for k in API_KEYS if k]
+API_KEYS = [k.strip() for k in API_KEYS if k and k.strip()]
+
+# Dictionary to store chat sessions (Simplified for new SDK)
+chat_histories = {}
 
 def get_chat_response(message, session_id):
-    last_error = "No API keys configured"
+    if not API_KEYS:
+        return None, "No API keys configured in .env or Vercel Settings"
     
+    last_error = "Unknown error"
+    
+    # Try each API key until one works
     for key in API_KEYS:
         try:
-            genai.configure(api_key=key)
-            # Using gemini-pro for maximum stability
-            model = genai.GenerativeModel('gemini-pro')
+            client = Client(api_key=key)
             
-            # Start or continue chat
-            chat = model.start_chat(history=[
-                 {"role": "user", "parts": ["You are Aura, an elite AI assistant. Be professional and helpful."]},
-                 {"role": "model", "parts": ["Understood. I am Aura, your AI assistant."]}
-            ])
+            # Initialize history if new session
+            if session_id not in chat_histories:
+                chat_histories[session_id] = [
+                    {"role": "user", "content": "You are Aura, an elite AI assistant. Be professional, helpful, and concise."},
+                    {"role": "model", "content": "Understood. I am Aura, your elite AI assistant. How can I help you today?"}
+                ]
             
-            response = chat.send_message(message)
-            return response.text, None
+            # Add current message to history
+            chat_histories[session_id].append({"role": "user", "content": message})
+            
+            # Get response using gemini-1.5-flash
+            response = client.models.generate_content(
+                model="gemini-1.5-flash",
+                contents=chat_histories[session_id]
+            )
+            
+            ai_reply = response.text
+            # Save AI response to history
+            chat_histories[session_id].append({"role": "model", "content": ai_reply})
+            
+            return ai_reply, None
+            
         except Exception as e:
             last_error = str(e)
             print(f"Key failed, trying next... Error: {e}")
