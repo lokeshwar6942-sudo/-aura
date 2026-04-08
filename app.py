@@ -7,25 +7,22 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-app = Flask(__name__)
+# Explicitly set template and static folders for Vercel
+app = Flask(__name__, template_folder='templates', static_folder='static')
 CORS(app)
 
 # Configure Gemini API
 API_KEY = os.getenv("GEMINI_API_KEY")
-if not API_KEY or API_KEY == "your_gemini_api_key_here":
-    print("WARNING: Valid GEMINI_API_KEY not found in .env file.")
-else:
+if API_KEY:
     genai.configure(api_key=API_KEY)
 
-# Initialize the model using the recommended 'gemini-1.5-flash'
+# Initialize the model
 try:
     model = genai.GenerativeModel('gemini-1.5-flash')
 except Exception as e:
-    print(f"Warning: Model initialization issue: {e}")
+    print(f"Error: {e}")
     model = None
 
-# Store chat sessions in memory (for simplicity in this prototype)
-# In production, use a database (like MongoDB/PostgreSQL)
 chat_sessions = {}
 
 @app.route('/')
@@ -42,26 +39,24 @@ def chat():
         if not user_message:
             return jsonify({"error": "Message is required"}), 400
 
-        if not API_KEY or API_KEY == "your_gemini_api_key_here":
-             return jsonify({"error": "API Key is missing. Please add your GEMINI_API_KEY in the .env file."}), 500
+        if not API_KEY:
+             return jsonify({"error": "API Key is missing."}), 500
 
-        # Retrieve or create a chat session with an initial prompt
         if session_id not in chat_sessions:
             chat_sessions[session_id] = model.start_chat(history=[
-                 {"role": "user", "parts": ["You are Aura, an elite, professional, and friendly AI Customer Support Assistant for a premium website. Provide clear, concise, and highly helpful answers. Use formatting like bullet points or bold text if helpful. If you don't know the answer, politely admit it."]},
-                 {"role": "model", "parts": ["Understood. I am Aura, your elite AI support assistant. I am ready to provide premium, helpful, and concise support."]}
+                 {"role": "user", "parts": ["You are Aura, a futuristic AI assistant. Be helpful and professional."]},
+                 {"role": "model", "parts": ["Understood. I am Aura."]}
             ])
         
         chat_session = chat_sessions[session_id]
-
-        # Send message to Gemini
         response = chat_session.send_message(user_message)
         
         return jsonify({"reply": response.text})
 
     except Exception as e:
-        print(f"Error handling request: {e}")
-        return jsonify({"error": "Failed to get response from AI. Check terminal logs."}), 500
+        return jsonify({"error": str(e)}), 500
 
+# Required for Vercel
+app.debug = False
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run()
