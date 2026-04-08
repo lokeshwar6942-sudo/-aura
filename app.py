@@ -10,14 +10,22 @@ load_dotenv()
 app = Flask(__name__, template_folder='templates', static_folder='static')
 CORS(app)
 
-# Initialize client (will automatically use GEMINI_API_KEY from env)
-client = genai.Client()
+# Use the API key from environment variable explicitly
+def get_client():
+    api_key = os.environ.get("GEMINI_API_KEY")
+    if not api_key:
+        return None
+    return genai.Client(api_key=api_key)
 
 # Dictionary to store chat sessions
 chat_sessions = {}
 
 def get_chat_response(message, session_id):
     try:
+        client = get_client()
+        if not client:
+            return None, "GEMINI_API_KEY is missing in environment variables"
+
         # Retrieve or create stateful chat session
         if session_id not in chat_sessions:
             chat_sessions[session_id] = client.chats.create(
@@ -31,7 +39,7 @@ def get_chat_response(message, session_id):
         if response and response.text:
             return response.text, None
         else:
-            return None, "Empty response from AI"
+            return None, "AI returned an empty response"
             
     except Exception as e:
         # If session fails, clear it to retry fresh next time
@@ -47,19 +55,22 @@ def index():
 def chat():
     try:
         data = request.json
+        if not data:
+            return jsonify({"reply": "Invalid request format"}), 400
+            
         user_message = data.get('message')
         session_id = data.get('session_id', 'default')
 
         if not user_message:
-            return jsonify({"error": "Message is required"}), 400
+            return jsonify({"reply": "Message is required"}), 400
 
         reply, error = get_chat_response(user_message, session_id)
         
         if reply:
             return jsonify({"reply": reply})
         else:
-            # Custom error message for better UX
-            return jsonify({"reply": f"⚠️ Aura is resting. Error: {error}. Please try again."}), 500
+            # Send the specific error back to UI for debugging
+            return jsonify({"reply": f"⚠️ Aura Error: {error}. Check Vercel Environment Variables."}), 500
 
     except Exception as e:
         return jsonify({"reply": f"Global Error: {str(e)}"}), 500
