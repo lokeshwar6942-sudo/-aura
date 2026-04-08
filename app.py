@@ -1,4 +1,5 @@
 import os
+import sys
 from flask import Flask, render_template, request, jsonify
 from flask_cors import CORS
 from google import genai
@@ -23,12 +24,13 @@ chat_histories = {}
 
 def get_chat_response(message, session_id):
     if not API_KEYS:
+        print("CRITICAL: No API keys found in environment variables.")
         return None, "No API keys configured in Vercel Settings"
     
     last_error = "Unknown error"
     
     # Try each API key until one works
-    for key in API_KEYS:
+    for idx, key in enumerate(API_KEYS):
         try:
             # Correct initialization for google-genai SDK
             client = genai.Client(api_key=key)
@@ -36,12 +38,12 @@ def get_chat_response(message, session_id):
             # Initialize history if new session
             if session_id not in chat_histories:
                 chat_histories[session_id] = [
-                    {"role": "user", "content": "You are Aura, an elite AI assistant. Be professional, helpful, and concise."},
-                    {"role": "model", "content": "Understood. I am Aura, your elite AI assistant. How can I help you today?"}
+                    {"role": "user", "parts": [{"text": "You are Aura, an elite AI assistant. Be professional, helpful, and concise."}]},
+                    {"role": "model", "parts": [{"text": "Understood. I am Aura, your elite AI assistant. How can I help you today?"}]}
                 ]
             
             # Add current message to history
-            chat_histories[session_id].append({"role": "user", "content": message})
+            chat_histories[session_id].append({"role": "user", "parts": [{"text": message}]})
             
             # Get response using gemini-1.5-flash
             response = client.models.generate_content(
@@ -49,15 +51,17 @@ def get_chat_response(message, session_id):
                 contents=chat_histories[session_id]
             )
             
-            ai_reply = response.text
-            # Save AI response to history
-            chat_histories[session_id].append({"role": "model", "content": ai_reply})
-            
-            return ai_reply, None
-            
+            if response and response.text:
+                ai_reply = response.text
+                # Save AI response to history
+                chat_histories[session_id].append({"role": "model", "parts": [{"text": ai_reply}]})
+                return ai_reply, None
+            else:
+                last_error = "Empty response from AI model"
+                
         except Exception as e:
-            last_error = str(e)
-            print(f"Key failed, trying next... Error: {e}")
+            last_error = f"Key {idx+1} Error: {str(e)}"
+            print(f"Key {idx+1} failed: {e}", file=sys.stderr)
             continue
             
     return None, last_error
