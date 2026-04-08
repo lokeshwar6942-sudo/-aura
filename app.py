@@ -14,7 +14,8 @@ def init_gemini():
         return None, "API_KEY not found in Vercel settings"
     try:
         genai.configure(api_key=API_KEY.strip())
-        return genai.GenerativeModel('gemini-1.5-flash'), None
+        # Using 'gemini-pro' as it is the most stable across all regions/versions
+        return genai.GenerativeModel('gemini-pro'), None
     except Exception as e:
         return None, str(e)
 
@@ -40,8 +41,8 @@ def chat():
 
         if session_id not in chat_sessions:
             chat_sessions[session_id] = model.start_chat(history=[
-                 {"role": "user", "parts": ["You are Aura, an elite, professional, and friendly AI Customer Support Assistant. Provide helpful and concise answers."]},
-                 {"role": "model", "parts": ["Understood. I am Aura, your AI assistant."]}
+                 {"role": "user", "parts": ["You are Aura, an elite AI assistant. Be friendly, professional, and helpful."]},
+                 {"role": "model", "parts": ["Understood. I am Aura, your elite AI assistant."]}
             ])
         
         chat_session = chat_sessions[session_id]
