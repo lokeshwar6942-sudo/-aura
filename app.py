@@ -36,8 +36,9 @@ def get_chat_response(message, session_id):
             # Retrieve or create stateful chat session
             if session_id not in chat_sessions:
                 # Start new chat with system instruction
+                # Using full model name format: models/gemini-1.5-flash
                 chat_sessions[session_id] = client.chats.create(
-                    model="gemini-1.5-flash",
+                    model="models/gemini-1.5-flash",
                     config={"system_instruction": "You are Aura, an elite AI assistant. Be professional, helpful, and concise."}
                 )
             
@@ -51,8 +52,7 @@ def get_chat_response(message, session_id):
                 
         except Exception as e:
             last_error = f"Key {idx+1} Error: {str(e)}"
-            # If a session fails with one key, we might need to recreate it for the next key
-            # Clear it so it retries from scratch next time
+            # Clear session on error to retry fresh
             if session_id in chat_sessions:
                 del chat_sessions[session_id]
             continue
