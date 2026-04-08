@@ -6,20 +6,37 @@ import google.generativeai as genai
 app = Flask(__name__, template_folder='templates', static_folder='static')
 CORS(app)
 
-# Configure Gemini API from Environment Variables
-API_KEY = os.environ.get("GEMINI_API_KEY")
+# Multiple API Keys support (Failover logic)
+API_KEYS = [
+    os.environ.get("GEMINI_API_KEY"),
+    os.environ.get("GEMINI_API_KEY_2")
+]
+# Clean None values
+API_KEYS = [k.strip() for k in API_KEYS if k]
 
-def init_gemini():
-    if not API_KEY:
-        return None, "API_KEY not found in Vercel settings"
-    try:
-        genai.configure(api_key=API_KEY.strip())
-        # Using 'gemini-pro' as it is the most stable across all regions/versions
-        return genai.GenerativeModel('gemini-pro'), None
-    except Exception as e:
-        return None, str(e)
-
-chat_sessions = {}
+def get_chat_response(message, session_id):
+    last_error = "No API keys configured"
+    
+    for key in API_KEYS:
+        try:
+            genai.configure(api_key=key)
+            # Using gemini-pro for maximum stability
+            model = genai.GenerativeModel('gemini-pro')
+            
+            # Start or continue chat
+            chat = model.start_chat(history=[
+                 {"role": "user", "parts": ["You are Aura, an elite AI assistant. Be professional and helpful."]},
+                 {"role": "model", "parts": ["Understood. I am Aura, your AI assistant."]}
+            ])
+            
+            response = chat.send_message(message)
+            return response.text, None
+        except Exception as e:
+            last_error = str(e)
+            print(f"Key failed, trying next... Error: {e}")
+            continue
+            
+    return None, last_error
 
 @app.route('/')
 def index():
@@ -27,10 +44,6 @@ def index():
 
 @app.route('/api/chat', methods=['POST'])
 def chat():
-    model, error_msg = init_gemini()
-    if not model:
-        return jsonify({"reply": f"⚠️ AI Offline: {error_msg}"}), 500
-
     try:
         data = request.json
         user_message = data.get('message')
@@ -39,19 +52,15 @@ def chat():
         if not user_message:
             return jsonify({"error": "Message is required"}), 400
 
-        if session_id not in chat_sessions:
-            chat_sessions[session_id] = model.start_chat(history=[
-                 {"role": "user", "parts": ["You are Aura, an elite AI assistant. Be friendly, professional, and helpful."]},
-                 {"role": "model", "parts": ["Understood. I am Aura, your elite AI assistant."]}
-            ])
+        reply, error = get_chat_response(user_message, session_id)
         
-        chat_session = chat_sessions[session_id]
-        response = chat_session.send_message(user_message)
-        
-        return jsonify({"reply": response.text})
+        if reply:
+            return jsonify({"reply": reply})
+        else:
+            return jsonify({"reply": f"⚠️ System Overload: {error}. Please try again in a moment."}), 500
 
     except Exception as e:
-        return jsonify({"reply": f"Brain Error: {str(e)}"}), 500
+        return jsonify({"reply": f"Global Error: {str(e)}"}), 500
 
 if __name__ == '__main__':
     app.run(debug=True)
